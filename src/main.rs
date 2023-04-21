@@ -1,6 +1,6 @@
 use std::time::Instant;
 
-const MAX_ITERATIONS: u32 = 100;
+const MAX_ITERATIONS: u32 = 10_000;
 
 fn main() {
     let now = Instant::now();
@@ -15,7 +15,7 @@ fn main() {
         -1.74995768370609350360221450607069970727110579726252077930242837820286008082972804887,
         0.00000000000000000278793706563379402178294753790944364927085054500163081379043930650,
     );
-    let zoom = 0.005;
+    let zoom = 0.01;
 
     let aspect_ratio = imgx as f64 / imgy as f64;
 
