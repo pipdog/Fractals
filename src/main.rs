@@ -14,6 +14,7 @@ fn main() {
         -1.74995768370609350360221450607069970727110579726252077930242837820286008082972804887,
         0.00000000000000000278793706563379402178294753790944364927085054500163081379043930650,
     );
+
     let zoom = 0.01;
 
     let aspect_ratio = IMG_X as f64 / IMG_Y as f64;
@@ -45,44 +46,42 @@ fn main() {
             for x in x_box..x_box + box_size {
                 for y in y_box..y_box + box_size {
                     // only if the pixels are the border
-                    if x == x_box
+                    if !(x == x_box
                         || x == x_box + box_size - 1
                         || y == y_box
-                        || y == y_box + box_size - 1
+                        || y == y_box + box_size - 1)
                     {
-                        // Scales pixel to coordinate
-                        let cx = (x as f64 / xscale) + re_dimensions.0;
-                        let cy = (y as f64 / yscale) + (im_dimensions.1 * -1.0); // Inverted imaginary axis
-                        let c = num::Complex::new(cx, cy);
-
-                        let mut iteration = 0;
-
-                        // Start z at 0, 0
-                        let mut z: num::Complex<f64> = num::Complex::new(0.0, 0.0);
-
-                        // Main itteration, while |z| <= 2.
-                        // `Re(z)^2 + Im(z)^2 <= 4.0` <=> `z.norm() <= 2.0` but former is much faster
-                        while z.re.powi(2) + z.im.powi(2) <= 4.0 && iteration < MAX_ITERATIONS {
-                            // |Re(z)| & |Im(z)|
-                            // z.re = z.re.abs(); // Comment out for mandelbrot set
-                            // z.im = z.im.abs(); // Comment out for mandelbrot set
-                            z = z.powi(2) + c;
-                            iteration += 1;
-                        }
-
-                        if iteration < least_iterations {
-                            least_iterations = iteration;
-                        }
-
-                        // Assigns pixel color based on number of iterations
-                        imgbuf.put_pixel(
-                            x,
-                            y,
-                            image::Rgba(
-                                grad.at(iteration as f64 / MAX_ITERATIONS as f64).to_rgba8(),
-                            ),
-                        );
+                        continue;
                     }
+                    // Scales pixel to coordinate
+                    let cx = (x as f64 / xscale) + re_dimensions.0;
+                    let cy = (y as f64 / yscale) + (im_dimensions.1 * -1.0); // Inverted imaginary axis
+                    let c = num::Complex::new(cx, cy);
+
+                    let mut iteration = 0;
+
+                    // Start z at 0, 0
+                    let mut z: num::Complex<f64> = num::Complex::new(0.0, 0.0);
+
+                    // Main itteration, while |z| <= 2.
+                    while z.re.powi(2) + z.im.powi(2) <= 4.0 && iteration < MAX_ITERATIONS {
+                        // |Re(z)| & |Im(z)|
+                        // z.re = z.re.abs(); // Comment out for mandelbrot set
+                        // z.im = z.im.abs(); // Comment out for mandelbrot set
+                        z = z.powi(2) + c;
+                        iteration += 1;
+                    }
+
+                    if iteration < least_iterations {
+                        least_iterations = iteration;
+                    }
+
+                    // Assigns pixel color based on number of iterations
+                    imgbuf.put_pixel(
+                        x,
+                        y,
+                        image::Rgba(grad.at(iteration as f64 / MAX_ITERATIONS as f64).to_rgba8()),
+                    );
                 }
             }
             // If all borders are iterated to the max the inside is also max
