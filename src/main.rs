@@ -37,14 +37,52 @@ fn main() {
     // Create a new ImgBuf with specified height and width
     let mut imgbuf = image::ImageBuffer::new(IMG_X, IMG_Y);
 
-    let box_size = 120;
+    let box_sizes = [120, 60, 30, 15, 5, 3, 2];
 
     // traverse top left of each box
-    for x_box in (0..IMG_X).step_by(box_size as usize) {
-        for y_box in (0..IMG_Y).step_by(box_size as usize) {
+    render_box(
+        &mut imgbuf,
+        0,
+        0,
+        IMG_X,
+        IMG_Y,
+        box_sizes,
+        &grad,
+        xscale,
+        yscale,
+        re_dimensions,
+        im_dimensions,
+        1,
+    );
+
+    // Save image and count elapsed time.
+    println!("Saving image...");
+    imgbuf.save("output.png").unwrap();
+    let elapsed = now.elapsed();
+    println!("Image saved. Time elapsed: {:.2?}", elapsed);
+    println!("Zoom: {zoom}");
+}
+
+fn render_box(
+    imgbuf: &mut image::ImageBuffer<image::Rgba<u8>, Vec<u8>>,
+    startx: u32,
+    starty: u32,
+    stopx: u32,
+    stopy: u32,
+    box_sizes: [u32; 7],
+    gradient: &colorgrad::Gradient,
+    xscale: f64,
+    yscale: f64,
+    re_dimensions: (f64, f64),
+    im_dimensions: (f64, f64),
+    depth: u32,
+) {
+    let box_size = box_sizes[depth as usize];
+    for y_box in (starty..stopy).step_by(box_size as usize) {
+        for x_box in (startx..stopx).step_by(box_size as usize) {
             let mut least_iterations = MAX_ITERATIONS + 1;
-            for x in x_box..x_box + box_size {
-                for y in y_box..y_box + box_size {
+            for y in y_box..y_box + box_size {
+                for x in x_box..x_box + box_size {
                     // only if the pixels are the border
                     if !(x == x_box
                         || x == x_box + box_size - 1
@@ -80,41 +118,57 @@ fn main() {
                     imgbuf.put_pixel(
                         x,
                         y,
-                        image::Rgba(grad.at(iteration as f64 / MAX_ITERATIONS as f64).to_rgba8()),
+                        image::Rgba(
+                            gradient
+                                .at(iteration as f64 / MAX_ITERATIONS as f64)
+                                .to_rgba8(),
+                        ),
                     );
                 }
             }
             // If all borders are iterated to the max the inside is also max
             if least_iterations == MAX_ITERATIONS {
                 //colour the inside square
+                dbg!(box_size);
+                let value = 1.0 - (0.1 * depth as f64);
                 draw_square(
-                    &mut imgbuf,
+                    imgbuf,
                     x_box,
                     y_box,
                     box_size,
                     box_size,
-                    image::Rgba(grad.at(1.0).to_rgba8()),
+                    image::Rgba(gradient.at(value).to_rgba8()),
                 );
             } else {
-                for x in x_box..x_box + box_size {
+                if depth < 4 {
+                    render_box(
+                        imgbuf,
+                        x_box,
+                        y_box,
+                        x_box + box_size,
+                        y_box + box_size,
+                        box_sizes,
+                        gradient,
+                        xscale,
+                        yscale,
+                        re_dimensions,
+                        im_dimensions,
+                        depth + 1,
+                    );
+                } else {
                     for y in y_box..y_box + box_size {
-                        // Scales pixel to coordinate
-                        let cx = (x as f64 / xscale) + re_dimensions.0;
-                        let cy = (y as f64 / yscale) + (im_dimensions.1 * -1.0); // Inverted imaginary axis
-                        let c = num::Complex::new(cx, cy);
-                        render_mandelbrot_at_point(&mut imgbuf, x, y, c, &grad);
+                        for x in x_box..x_box + box_size {
+                            // Scales pixel to coordinate
+                            let cx = (x as f64 / xscale) + re_dimensions.0;
+                            let cy = (y as f64 / yscale) + (im_dimensions.1 * -1.0); // Inverted imaginary axis
+                            let c = num::Complex::new(cx, cy);
+                            render_mandelbrot_at_point(imgbuf, x, y, c, &gradient);
+                        }
                     }
                 }
             }
         }
     }
-
-    // Save image and count elapsed time.
-    println!("Saving image...");
-    imgbuf.save("output.png").unwrap();
-    let elapsed = now.elapsed();
-    println!("Image saved. Time elapsed: {:.2?}", elapsed);
-    println!("Zoom: {zoom}");
 }
 
 fn render_mandelbrot_at_point(
