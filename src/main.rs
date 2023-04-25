@@ -3,7 +3,7 @@ use std::time::Instant;
 const IMG_X: u32 = 1920;
 const IMG_Y: u32 = 1080;
 
-const MAX_ITERATIONS: u32 = 10_000;
+const MAX_ITERATIONS: u32 = 100;
 
 const BOX_SIZES: [u32; 5] = [120, 60, 30, 15, 5];
 
@@ -51,7 +51,7 @@ fn main() {
         yscale,
         re_dimensions,
         im_dimensions,
-        1,
+        0,
     );
 
     // Save image and count elapsed time.
@@ -79,7 +79,7 @@ fn render_box(
     let box_size = BOX_SIZES[depth as usize];
     for y_box in (starty..stopy).step_by(box_size as usize) {
         for x_box in (startx..stopx).step_by(box_size as usize) {
-            let mut least_iterations = MAX_ITERATIONS + 1;
+            let mut least_iterations = MAX_ITERATIONS;
             for y in y_box..y_box + box_size {
                 for x in x_box..x_box + box_size {
                     // only if the pixels are the border
@@ -90,50 +90,38 @@ fn render_box(
                     {
                         continue;
                     }
-                    // Scales pixel to coordinate
-                    let cx = (x as f64 / xscale) + re_dimensions.0;
-                    let cy = (y as f64 / yscale) + (im_dimensions.1 * -1.0); // Inverted imaginary axis
-                    let c = num::Complex::new(cx, cy);
 
-                    let mut iteration = 0;
+                    let current_pixel = imgbuf.get_pixel(x, y);
 
-                    // Start z at 0, 0
-                    let mut z: num::Complex<f64> = num::Complex::new(0.0, 0.0);
-                    // If alpha value of pixel at coordinate is not zero
-                    // the pixel is already calculated.
-                    let current_pixel  = imgbuf.get_pixel(x, y);
-                    if current_pixel.0[3] != 0 {
-                        // If color is already calculated and not completely white
-                        // set least iterations to 0 to avoid filling in the box
-                        // TODO: maybe slow to create new rgba struct just to compare?
-                        if *current_pixel != image::Rgba([255_u8, 255_u8, 255_u8, 1_u8]) {
+                    // If alpha value of pixel at coordinate is zero
+                    // the pixel is not already calculated.
+                    if current_pixel.0[3] == 0 {
+                        // Scales pixel to coordinate
+                        let cx = (x as f64 / xscale) + re_dimensions.0;
+                        let cy = (y as f64 / yscale) + (im_dimensions.1 * -1.0); // Inverted imaginary axis
+                        let c = num::Complex::new(cx, cy);
+
+                        // Main itteration, while |z| <= 2.
+                        let iteration = iterate(c, MAX_ITERATIONS);
+
+                        if iteration < least_iterations {
+                            least_iterations = iteration;
+                        }
+                        // Assigns pixel color based on number of iterations
+                        imgbuf.put_pixel(
+                            x,
+                            y,
+                            image::Rgba(
+                                gradient
+                                    .at(iteration as f64 / MAX_ITERATIONS as f64)
+                                    .to_rgba8(),
+                            ),
+                        );
+                    } else {
+                        if *current_pixel != image::Rgba([255_u8, 255_u8, 255_u8, 255_u8]) {
                             least_iterations = 0;
                         }
-                    } else {
-                        // Main itteration, while |z| <= 2.
-                        while z.re.powi(2) + z.im.powi(2) <= 4.0 && iteration < MAX_ITERATIONS {
-                            // |Re(z)| & |Im(z)|
-                            // z.re = z.re.abs(); // Comment out for mandelbrot set
-                            // z.im = z.im.abs(); // Comment out for mandelbrot set
-                            z = z.powi(2) + c;
-                            iteration += 1;
-                        }
                     }
-
-                    if iteration < least_iterations {
-                        least_iterations = iteration;
-                    }
-
-                    // Assigns pixel color based on number of iterations
-                    imgbuf.put_pixel(
-                        x,
-                        y,
-                        image::Rgba(
-                            gradient
-                                .at(iteration as f64 / MAX_ITERATIONS as f64)
-                                .to_rgba8(),
-                        ),
-                    );
                 }
             }
             // If all borders are iterated to the max the inside is also max
@@ -148,7 +136,7 @@ fn render_box(
                     image::Rgba(gradient.at(1.0).to_rgba8()),
                 );
             } else {
-                if depth < 4 {
+                if depth < BOX_SIZES.len() as u32 - 1 {
                     render_box(
                         imgbuf,
                         x_box,
