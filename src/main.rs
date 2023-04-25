@@ -3,7 +3,9 @@ use std::time::Instant;
 const IMG_X: u32 = 1920;
 const IMG_Y: u32 = 1080;
 
-const MAX_ITERATIONS: u32 = 100;
+const MAX_ITERATIONS: u32 = 10_000;
+
+const BOX_SIZES: [u32; 5] = [120, 60, 30, 15, 5];
 
 fn main() {
     let now = Instant::now();
@@ -37,8 +39,6 @@ fn main() {
     // Create a new ImgBuf with specified height and width
     let mut imgbuf = image::ImageBuffer::new(IMG_X, IMG_Y);
 
-    let box_sizes = [120, 60, 30, 15, 5, 3, 2];
-
     // traverse top left of each box
     render_box(
         &mut imgbuf,
@@ -46,7 +46,6 @@ fn main() {
         0,
         IMG_X,
         IMG_Y,
-        box_sizes,
         &grad,
         xscale,
         yscale,
@@ -61,6 +60,7 @@ fn main() {
     let elapsed = now.elapsed();
     println!("Image saved. Time elapsed: {:.2?}", elapsed);
     println!("Zoom: {zoom}");
+    println!("Size: {IMG_X}x{IMG_Y}px");
 }
 
 fn render_box(
@@ -69,7 +69,6 @@ fn render_box(
     starty: u32,
     stopx: u32,
     stopy: u32,
-    box_sizes: [u32; 7],
     gradient: &colorgrad::Gradient,
     xscale: f64,
     yscale: f64,
@@ -77,7 +76,7 @@ fn render_box(
     im_dimensions: (f64, f64),
     depth: u32,
 ) {
-    let box_size = box_sizes[depth as usize];
+    let box_size = BOX_SIZES[depth as usize];
     for y_box in (starty..stopy).step_by(box_size as usize) {
         for x_box in (startx..stopx).step_by(box_size as usize) {
             let mut least_iterations = MAX_ITERATIONS + 1;
@@ -100,14 +99,25 @@ fn render_box(
 
                     // Start z at 0, 0
                     let mut z: num::Complex<f64> = num::Complex::new(0.0, 0.0);
-
-                    // Main itteration, while |z| <= 2.
-                    while z.re.powi(2) + z.im.powi(2) <= 4.0 && iteration < MAX_ITERATIONS {
-                        // |Re(z)| & |Im(z)|
-                        // z.re = z.re.abs(); // Comment out for mandelbrot set
-                        // z.im = z.im.abs(); // Comment out for mandelbrot set
-                        z = z.powi(2) + c;
-                        iteration += 1;
+                    // If alpha value of pixel at coordinate is not zero
+                    // the pixel is already calculated.
+                    let current_pixel  = imgbuf.get_pixel(x, y);
+                    if current_pixel.0[3] != 0 {
+                        // If color is already calculated and not completely white
+                        // set least iterations to 0 to avoid filling in the box
+                        // TODO: maybe slow to create new rgba struct just to compare?
+                        if *current_pixel != image::Rgba([255_u8, 255_u8, 255_u8, 1_u8]) {
+                            least_iterations = 0;
+                        }
+                    } else {
+                        // Main itteration, while |z| <= 2.
+                        while z.re.powi(2) + z.im.powi(2) <= 4.0 && iteration < MAX_ITERATIONS {
+                            // |Re(z)| & |Im(z)|
+                            // z.re = z.re.abs(); // Comment out for mandelbrot set
+                            // z.im = z.im.abs(); // Comment out for mandelbrot set
+                            z = z.powi(2) + c;
+                            iteration += 1;
+                        }
                     }
 
                     if iteration < least_iterations {
@@ -129,15 +139,13 @@ fn render_box(
             // If all borders are iterated to the max the inside is also max
             if least_iterations == MAX_ITERATIONS {
                 //colour the inside square
-                dbg!(box_size);
-                let value = 1.0 - (0.1 * depth as f64);
                 draw_square(
                     imgbuf,
                     x_box,
                     y_box,
                     box_size,
                     box_size,
-                    image::Rgba(gradient.at(value).to_rgba8()),
+                    image::Rgba(gradient.at(1.0).to_rgba8()),
                 );
             } else {
                 if depth < 4 {
@@ -147,7 +155,6 @@ fn render_box(
                         y_box,
                         x_box + box_size,
                         y_box + box_size,
-                        box_sizes,
                         gradient,
                         xscale,
                         yscale,
